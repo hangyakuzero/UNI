@@ -4,49 +4,117 @@ set -e
 APP_NAME="uni"
 REPO="hangyakuzero/UNI"
 
-# ---- OS CHECK ----
-if [ "$(uname -s)" != "Darwin" ]; then
-  echo "❌ This installer supports macOS only"
+echo "📦 UNI Installer"
+
+# -------------------------
+# Detect OS
+# -------------------------
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+
+case "$OS" in
+darwin*)
+  PLATFORM="macos"
+  ;;
+mingw* | msys* | cygwin*)
+  PLATFORM="windows"
+  ;;
+*)
+  echo "❌ Unsupported OS: $OS"
+  exit 1
+  ;;
+esac
+
+# -------------------------
+# macOS: Apple Silicon only
+# -------------------------
+if [ "$PLATFORM" = "macos" ]; then
+  ARCH="$(uname -m)"
+  if [ "$ARCH" != "arm64" ]; then
+    echo "❌ Unsupported Mac architecture: $ARCH"
+    echo "👉 UNI supports Apple Silicon (M1/M2/M3) only."
+    exit 1
+  fi
+fi
+
+# -------------------------
+# Desktop path
+# -------------------------
+if [ "$PLATFORM" = "macos" ]; then
+  DESKTOP="$HOME/Desktop"
+  ASSET="uni-macos"
+  OUTFILE="$DESKTOP/$APP_NAME"
+else
+  # Windows (Git Bash safe path)
+  DESKTOP="/c/Users/$(whoami)/Desktop"
+  ASSET="uni.exe"
+  OUTFILE="$DESKTOP/uni.exe"
+fi
+
+echo "📍 Target location: $DESKTOP"
+
+# -------------------------
+# Ensure Desktop exists & writable
+# -------------------------
+if [ ! -d "$DESKTOP" ]; then
+  echo "❌ Desktop directory not found: $DESKTOP"
   exit 1
 fi
 
-# ---- ARCH CHECK (STRICT) ----
-ARCH="$(uname -m)"
-if [ "$ARCH" != "arm64" ]; then
-  echo "❌ Unsupported Mac architecture: $ARCH"
-  echo "👉 UNI currently supports Apple Silicon (M1/M2/M3) only."
+if [ ! -w "$DESKTOP" ]; then
+  echo "❌ Desktop is not writable: $DESKTOP"
   exit 1
 fi
 
-DESKTOP="$HOME/Desktop"
-OUTFILE="$DESKTOP/$APP_NAME"
+# -------------------------
+# Fetch latest release tag
+# -------------------------
+echo "🔍 Fetching latest release…"
 
-echo "🍎 Installing UNI (Apple Silicon)"
-echo "📍 Installing to Desktop"
-
-# ---- FETCH LATEST RELEASE ----
-VERSION="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" |
-  grep '"tag_name"' | cut -d '"' -f 4)"
+VERSION="$(curl -fL https://api.github.com/repos/$REPO/releases/latest |
+  grep '"tag_name"' |
+  cut -d '"' -f 4)"
 
 if [ -z "$VERSION" ]; then
-  echo "❌ Failed to fetch latest release"
+  echo "❌ Failed to determine latest release version"
   exit 1
 fi
 
-echo "🏷️  Version: $VERSION"
+echo "🏷️  Latest version: $VERSION"
 
-# ---- DOWNLOAD ----
-URL="https://github.com/$REPO/releases/download/$VERSION/uni-macos"
+# -------------------------
+# Download
+# -------------------------
+URL="https://github.com/$REPO/releases/download/$VERSION/$ASSET"
 
-echo "⬇️  Downloading uni-macos..."
-curl -fsSL "$URL" -o "$OUTFILE"
+echo "⬇️  Downloading $ASSET…"
+echo "   $URL"
 
-# ---- MACOS FIXES ----
-chmod +x "$OUTFILE"
-xattr -d com.apple.quarantine "$OUTFILE" 2>/dev/null || true
+# Remove existing file if present (important for curl 56)
+rm -f "$OUTFILE"
 
+curl -fL --retry 3 --retry-delay 2 "$URL" -o "$OUTFILE"
+
+# -------------------------
+# Post-install fixes
+# -------------------------
+if [ "$PLATFORM" = "macos" ]; then
+  chmod +x "$OUTFILE"
+  xattr -d com.apple.quarantine "$OUTFILE" 2>/dev/null || true
+fi
+
+# -------------------------
+# Done
+# -------------------------
 echo ""
 echo "✅ UNI installed successfully!"
-echo "👉 Double-click 'uni' on your Desktop"
-echo "👉 Or run:"
-echo "   $OUTFILE"
+
+if [ "$PLATFORM" = "macos" ]; then
+  echo "👉 Location: $OUTFILE"
+  echo "👉 Double-click 'uni' on your Desktop"
+  echo "👉 Or run:"
+  echo "   $OUTFILE"
+else
+  echo "👉 Double-click 'uni.exe' on your Desktop"
+fi
+
+echo "💕 Enjoy UNI"
