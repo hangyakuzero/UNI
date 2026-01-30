@@ -1,3 +1,4 @@
+
 name: Build & Release UNI
 
 on:
@@ -8,6 +9,9 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
 
@@ -92,21 +96,5 @@ jobs:
           files: |
             dist/uni-macos
             dist/uni.exe
-          body: |
-            ## 🎉 UNI Release ${{ github.ref_name }}
-
-            ### Downloads
-            - **macOS (Apple Silicon)** → `uni-macos`
-            - **Windows (x64)** → `uni.exe`
-
-            ### macOS One-Line Install
-            ```bash
-            curl -fsSL https://raw.githubusercontent.com/hangyakuzero/UNI/main/install.sh | sh
-            ```
-
-            ### Notes
-            - macOS supports **Apple Silicon only**
-            - Windows users can double-click `uni.exe`
-
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
