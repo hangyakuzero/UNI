@@ -1,10 +1,11 @@
 import { createCliRenderer, TextAttributes } from "@opentui/core";
 import { createRoot, useKeyboard, useRenderer, useTimeline } from "@opentui/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // Valentine's color palette
 type Screen = "proposal" | "yes" | "no" | "game" | "gameover";
 type GameState = "countdown" | "playing" | "won" | "lost";
+type PowerUpType = "rose" | "letter" | "magnet";
 
 const COLORS = {
   hotPink: "#FF69B4",
@@ -29,6 +30,55 @@ const HEART_TYPES = {
   gift: { char: "💝", points: 25, color: COLORS.deepPink },
   broken: { char: "💔", points: -10, color: "#666666" },
 };
+
+// Power-up types for the game
+const POWER_UPS = {
+  rose: { char: "🌹", color: COLORS.crimson, duration: 5000, description: "Slow Motion!" },
+  letter: { char: "💌", color: COLORS.gold, duration: 8000, description: "2x Points!" },
+  magnet: { char: "🧲", color: COLORS.purple, duration: 6000, description: "Heart Magnet!" },
+};
+
+// Love poems for the celebration
+const LOVE_POEMS = [
+  {
+    title: "My Valentine",
+    lines: [
+      "Roses are red, violets are blue,",
+      "Sugar is sweet, and so are you!",
+      "You caught my heart with every beat,",
+      "Together we make love complete! 💕",
+    ],
+  },
+  {
+    title: "Forever Yours",
+    lines: [
+      "In a world of hearts that fall like rain,",
+      "You caught them all, again and again.",
+      "My love for you will never end,",
+      "You're more than love, you're my best friend! 💖",
+    ],
+  },
+  {
+    title: "Our Love Story",
+    lines: [
+      "Like stars that shine up in the sky,",
+      "Our love will never say goodbye.",
+      "With every heart you caught today,",
+      "You stole mine in the sweetest way! 💝",
+    ],
+  },
+];
+
+// Calculate days until Valentine's Day
+function getDaysUntilValentine(): number {
+  const today = new Date();
+  const valentine = new Date(today.getFullYear(), 1, 14); // Feb 14
+  if (today > valentine) {
+    valentine.setFullYear(valentine.getFullYear() + 1);
+  }
+  const diffTime = valentine.getTime() - today.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
 
 // Interpolate between two colors
 function interpolateColor(color1: string, color2: string, factor: number): string {
@@ -176,8 +226,114 @@ function ValentineFrame({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Proposal Screen with heartbeat and color pulsing
+// Welcome Screen for name input
+function WelcomeScreen({ onSubmit }: { onSubmit: (name: string) => void }) {
+  const [name, setName] = useState("");
+  const [cursorVisible, setCursorVisible] = useState(true);
+  const daysUntilValentine = getDaysUntilValentine();
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCursorVisible(v => !v);
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
+  useKeyboard((key) => {
+    if ((key.name === "enter" || key.name === "return") && name.trim().length > 0) {
+      onSubmit(name.trim());
+    } else if (key.name === "backspace" || key.name === "delete") {
+      setName(n => n.slice(0, -1));
+    } else if (key.sequence && key.sequence.length === 1 && /[a-zA-Z\s]/.test(key.sequence)) {
+      if (name.length < 20) {
+        setName(n => n + key.sequence);
+      }
+    }
+  });
+
+  return (
+    <box
+      flexGrow={1}
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+      backgroundColor={COLORS.rose}
+      position="relative"
+    >
+      <FallingHearts />
+
+      {/* Valentine countdown */}
+      {daysUntilValentine > 0 && daysUntilValentine <= 30 && (
+        <box position="absolute" top={2}>
+          <text fg={COLORS.crimson}>
+            <strong>💕 {daysUntilValentine} days until Valentine's Day! 💕</strong>
+          </text>
+        </box>
+      )}
+
+      <box
+        border
+        borderColor={COLORS.deepPink}
+        borderStyle="double"
+        padding={1}
+        backgroundColor={COLORS.white}
+      >
+        <box
+          border
+          borderColor={COLORS.hotPink}
+          borderStyle="rounded"
+          padding={3}
+          backgroundColor={COLORS.white}
+          flexDirection="column"
+          alignItems="center"
+          gap={1}
+        >
+          <text fontSize="xl" fg={COLORS.crimson}>
+            <strong>✨ Be My Valentine? ✨</strong>
+          </text>
+          
+          <box marginTop={2}>
+            <text fg={COLORS.purple}>
+              What's your special someone's name?
+            </text>
+          </box>
+
+          <box
+            marginTop={1}
+            border
+            borderColor={COLORS.hotPink}
+            borderStyle="rounded"
+            padding={1}
+            width={30}
+            backgroundColor={COLORS.lightRose}
+          >
+            <text fg={COLORS.darkPurple}>
+              {name}{cursorVisible ? "█" : " "}
+            </text>
+          </box>
+
+          <box marginTop={2}>
+            <text fg={COLORS.hotPink}>
+              💖 💗 💓 💝 💕
+            </text>
+          </box>
+        </box>
+      </box>
+
+      <box marginTop={3}>
+        <text fg={COLORS.purple} attributes={TextAttributes.DIM}>
+          Type a name and press Enter to continue
+        </text>
+      </box>
+    </box>
+  );
+}
+
+// Proposal Screen with heartbeat, color pulsing, and SHRINKING NO BUTTON!
 function ProposalScreen({ onSelect }: { onSelect: (choice: "yes" | "no") => void }) {
+  const [noAttempts, setNoAttempts] = useState(0);
+  const [noButtonOffset, setNoButtonOffset] = useState({ x: 0, y: 0 });
+  const [noButtonSize, setNoButtonSize] = useState(100); // percentage
   const [bgColor, setBgColor] = useState(COLORS.rose);
   const [scale, setScale] = useState(1);
   const [borderGlow, setBorderGlow] = useState(0);
@@ -268,6 +424,27 @@ function ProposalScreen({ onSelect }: { onSelect: (choice: "yes" | "no") => void
 
   const borderColors = [COLORS.deepPink, COLORS.hotPink];
 
+  // Messages that get more desperate as you try to say no
+  const noMessages = [
+    "No... 🥺",
+    "Are you sure? 😢",
+    "Please reconsider! 💔",
+    "I'll be sad... 😭",
+    "Pretty please? 🥹",
+    "One more chance? 💕",
+    "...",
+  ];
+
+  const handleNoHover = () => {
+    // Make the No button smaller and move it
+    setNoAttempts(prev => prev + 1);
+    setNoButtonSize(prev => Math.max(20, prev - 15));
+    setNoButtonOffset({
+      x: (Math.random() - 0.5) * 40,
+      y: (Math.random() - 0.5) * 10,
+    });
+  };
+
   return (
     <box
       flexGrow={1}
@@ -327,18 +504,31 @@ function ProposalScreen({ onSelect }: { onSelect: (choice: "yes" | "no") => void
               </text>
             </box>
 
-            {/* Selection */}
-            <box marginTop={2} width={40}>
+            {/* Yes and No Selection */}
+            <box marginTop={2} width={45}>
               <select
                 options={[
-                  { name: "Yes! 💕", description: "Of course I will!", value: "yes" },
-                  { name: "No... 🥺", description: "I'm sorry...", value: "no" },
+                  { name: `${'💕'.repeat(1 + Math.min(noAttempts, 3))} YES! ${'💕'.repeat(1 + Math.min(noAttempts, 3))}`, description: "Of course I will!", value: "yes" },
+                  ...(noButtonSize > 20 ? [{ name: noMessages[Math.min(noAttempts, noMessages.length - 1)], description: "Think again...", value: "no" }] : []),
                 ]}
                 onSelect={(index, option) => {
-                  onSelect(option.value as "yes" | "no");
+                  if (option.value === "yes") {
+                    onSelect("yes");
+                  } else if (option.value === "no") {
+                    if (noAttempts >= 5) {
+                      onSelect("no");
+                    } else {
+                      handleNoHover();
+                    }
+                  }
                 }}
-                height={6}
-                width={40}
+                onHighlight={(index, option) => {
+                  if (option.value === "no" && noAttempts < 5) {
+                    handleNoHover();
+                  }
+                }}
+                height={noButtonSize > 20 ? 6 : 3}
+                width={45}
                 focused
                 backgroundColor={COLORS.rose}
                 selectedBackgroundColor={COLORS.deepPink}
@@ -348,6 +538,15 @@ function ProposalScreen({ onSelect }: { onSelect: (choice: "yes" | "no") => void
                 showScrollIndicator={false}
               />
             </box>
+
+            {/* Message when No button is gone */}
+            {noButtonSize <= 20 && (
+              <box marginTop={1}>
+                <text fg={COLORS.purple} attributes={TextAttributes.DIM}>
+                  (The No button ran away! 😏)
+                </text>
+              </box>
+            )}
           </box>
         </box>
         
@@ -499,8 +698,8 @@ function NoScreen({ onReturn }: { onReturn: () => void }) {
   );
 }
 
-// Heart Collector Game
-function HeartCollectorGame({ onWin, onLose }: { onWin: () => void; onLose: () => void }) {
+// Heart Collector Game with Power-ups!
+function HeartCollectorGame({ onWin, onLose }: { onWin: (score: number) => void; onLose: (score: number) => void }) {
   const [gameState, setGameState] = useState<GameState>("countdown");
   const [countdown, setCountdown] = useState(3);
   const [score, setScore] = useState(0);
@@ -512,10 +711,28 @@ function HeartCollectorGame({ onWin, onLose }: { onWin: () => void; onLose: () =
     y: number;
     type: keyof typeof HEART_TYPES;
   }>>([]);
+  const [powerUps, setPowerUps] = useState<Array<{
+    id: number;
+    x: number;
+    y: number;
+    type: PowerUpType;
+  }>>([]);
+  const [activePowerUp, setActivePowerUp] = useState<{ type: PowerUpType; endTime: number } | null>(null);
+  const [powerUpMessage, setPowerUpMessage] = useState<string | null>(null);
   const [combo, setCombo] = useState(0);
   const [lastCatch, setLastCatch] = useState<number | null>(null);
+  const [particles, setParticles] = useState<Array<{
+    id: number;
+    x: number;
+    y: number;
+    char: string;
+    color: string;
+    life: number;
+  }>>([]);
   
   const renderer = useRenderer();
+  const scoreRef = useRef(score);
+  scoreRef.current = score;
 
   // Countdown phase
   useEffect(() => {
@@ -548,9 +765,9 @@ function HeartCollectorGame({ onWin, onLose }: { onWin: () => void; onLose: () =
   // Win/Lose transitions
   useEffect(() => {
     if (gameState === "won") {
-      setTimeout(onWin, 2000);
+      setTimeout(() => onWin(scoreRef.current), 2000);
     } else if (gameState === "lost") {
-      setTimeout(onLose, 2000);
+      setTimeout(() => onLose(scoreRef.current), 2000);
     }
   }, [gameState, onWin, onLose]);
 
@@ -599,7 +816,100 @@ function HeartCollectorGame({ onWin, onLose }: { onWin: () => void; onLose: () =
     return () => clearInterval(spawnInterval);
   }, [gameState, timeLeft]);
 
-  // Move hearts and check collisions
+  // Spawn power-ups occasionally
+  useEffect(() => {
+    if (gameState !== "playing") return;
+    
+    const powerUpInterval = setInterval(() => {
+      if (Math.random() < 0.15) { // 15% chance every 3 seconds
+        const types: PowerUpType[] = ["rose", "letter", "magnet"];
+        const type = types[Math.floor(Math.random() * types.length)];
+        
+        setPowerUps(prev => [...prev, {
+          id: Date.now(),
+          x: Math.random() * 70 + 15,
+          y: -2,
+          type,
+        }]);
+      }
+    }, 3000);
+    
+    return () => clearInterval(powerUpInterval);
+  }, [gameState]);
+
+  // Check active power-up expiration
+  useEffect(() => {
+    if (!activePowerUp) return;
+    
+    const checkInterval = setInterval(() => {
+      if (Date.now() > activePowerUp.endTime) {
+        setActivePowerUp(null);
+        setPowerUpMessage(null);
+      }
+    }, 100);
+    
+    return () => clearInterval(checkInterval);
+  }, [activePowerUp]);
+
+  // Move power-ups
+  useEffect(() => {
+    if (gameState !== "playing") return;
+    
+    const moveInterval = setInterval(() => {
+      setPowerUps(prev => {
+        const newPowerUps: typeof powerUps = [];
+        
+        prev.forEach(powerUp => {
+          const speed = activePowerUp?.type === "rose" ? 0.2 : 0.5;
+          const newY = powerUp.y + speed;
+          
+          // Check collision with player
+          if (newY >= 22 && newY <= 24 && Math.abs(powerUp.x - playerX) < 8) {
+            // Activate power-up!
+            const powerUpInfo = POWER_UPS[powerUp.type];
+            setActivePowerUp({
+              type: powerUp.type,
+              endTime: Date.now() + powerUpInfo.duration,
+            });
+            setPowerUpMessage(powerUpInfo.description);
+            
+            // Add celebration particles
+            const newParticles = Array.from({ length: 5 }, (_, i) => ({
+              id: Date.now() + i,
+              x: powerUp.x + (Math.random() - 0.5) * 10,
+              y: powerUp.y - 2,
+              char: "✨",
+              color: powerUpInfo.color,
+              life: 10,
+            }));
+            setParticles(prev => [...prev, ...newParticles]);
+          } else if (newY < 26) {
+            newPowerUps.push({ ...powerUp, y: newY });
+          }
+        });
+        
+        return newPowerUps;
+      });
+    }, 50);
+    
+    return () => clearInterval(moveInterval);
+  }, [gameState, playerX, activePowerUp]);
+
+  // Animate particles
+  useEffect(() => {
+    if (particles.length === 0) return;
+    
+    const particleInterval = setInterval(() => {
+      setParticles(prev => prev
+        .map(p => ({ ...p, y: p.y - 0.3, life: p.life - 1 }))
+        .filter(p => p.life > 0)
+      );
+    }, 100);
+    
+    return () => clearInterval(particleInterval);
+  }, [particles.length]);
+
+  // Move hearts and check collisions with power-up effects
   useEffect(() => {
     if (gameState !== "playing") return;
     
@@ -611,26 +921,56 @@ function HeartCollectorGame({ onWin, onLose }: { onWin: () => void; onLose: () =
         let caughtSomething = false;
         
         prev.forEach(heart => {
-          const newY = heart.y + (timeLeft > 40 ? 0.4 : timeLeft > 20 ? 0.6 : 0.8);
+          // Slow motion if rose power-up active
+          const baseSpeed = timeLeft > 40 ? 0.4 : timeLeft > 20 ? 0.6 : 0.8;
+          const speed = activePowerUp?.type === "rose" ? baseSpeed * 0.4 : baseSpeed;
+          let newY = heart.y + speed;
+          let newX = heart.x;
+          
+          // Magnet effect - attract hearts towards player
+          if (activePowerUp?.type === "magnet" && HEART_TYPES[heart.type].points > 0) {
+            const dx = playerX - heart.x;
+            newX += dx * 0.08;
+          }
+          
+          // Extended catch radius with magnet
+          const catchRadius = activePowerUp?.type === "magnet" ? 10 : 6;
           
           // Check collision with player basket
-          if (newY >= 22 && newY <= 24 && Math.abs(heart.x - playerX) < 6) {
-            const points = HEART_TYPES[heart.type].points;
+          if (newY >= 22 && newY <= 24 && Math.abs(newX - playerX) < catchRadius) {
+            let points = HEART_TYPES[heart.type].points;
+            
+            // Double points with letter power-up
+            if (activePowerUp?.type === "letter" && points > 0) {
+              points *= 2;
+            }
+            
             if (points > 0) {
               newCombo++;
               caughtSomething = true;
               const bonus = newCombo >= 3 ? Math.floor(newCombo / 3) * 5 : 0;
               newScore += points + bonus;
+              
+              // Add catch particles
+              const newParticles = Array.from({ length: 3 }, (_, i) => ({
+                id: Date.now() + i + Math.random() * 1000,
+                x: newX + (Math.random() - 0.5) * 6,
+                y: 21,
+                char: points >= 20 ? "⭐" : "✨",
+                color: HEART_TYPES[heart.type].color,
+                life: 8,
+              }));
+              setParticles(prev => [...prev, ...newParticles]);
             } else {
               newCombo = 0;
               newScore += points;
             }
           } else if (newY < 26) {
-            newHearts.push({ ...heart, y: newY });
+            newHearts.push({ ...heart, y: newY, x: newX });
           }
         });
         
-         if (caughtSomething) {
+        if (caughtSomething) {
           setCombo(newCombo);
           setLastCatch(Date.now());
         }
@@ -648,7 +988,7 @@ function HeartCollectorGame({ onWin, onLose }: { onWin: () => void; onLose: () =
     }, 50);
     
     return () => clearInterval(moveInterval);
-  }, [gameState, playerX, score, combo, timeLeft]);
+  }, [gameState, playerX, score, combo, timeLeft, activePowerUp]);
 
   // Reset combo display
   useEffect(() => {
@@ -688,6 +1028,16 @@ function HeartCollectorGame({ onWin, onLose }: { onWin: () => void; onLose: () =
             💕=5 💖=10 💝=25 💔=-10
           </text>
         </box>
+        <box marginTop={2}>
+          <text fg={COLORS.gold}>
+            <strong>✨ Power-ups:</strong>
+          </text>
+        </box>
+        <box marginTop={1}>
+          <text fg={COLORS.purple}>
+            🌹 Slow-Mo  |  💌 2x Points  |  🧲 Magnet
+          </text>
+        </box>
       </box>
     );
   }
@@ -706,7 +1056,7 @@ function HeartCollectorGame({ onWin, onLose }: { onWin: () => void; onLose: () =
         </text>
         <box marginTop={2}>
           <text fg={COLORS.crimson}>
-            Love meter filled to 100%! 💕
+            Love meter filled to 100%! 💕 You proved your love!
           </text>
         </box>
         <box marginTop={2}>
@@ -782,12 +1132,17 @@ function HeartCollectorGame({ onWin, onLose }: { onWin: () => void; onLose: () =
             <strong>🔥 Combo x{combo}!</strong>
           </text>
         )}
+        {activePowerUp && (
+          <text fg={POWER_UPS[activePowerUp.type].color}>
+            <strong>{POWER_UPS[activePowerUp.type].char} {powerUpMessage}</strong>
+          </text>
+        )}
       </box>
 
       {/* Love Meter */}
       <box padding={1} flexDirection="column">
         <box flexDirection="row" justifyContent="space-between">
-          <text fg={COLORS.purple}>Love Meter</text>
+          <text fg={COLORS.purple}>Heart-O-Meter</text>
           <text fg={meterColor}><strong>{Math.round(loveMeterPercent)}%</strong></text>
         </box>
         <box
@@ -816,6 +1171,34 @@ function HeartCollectorGame({ onWin, onLose }: { onWin: () => void; onLose: () =
           >
             <text fg={HEART_TYPES[heart.type].color}>
               {HEART_TYPES[heart.type].char}
+            </text>
+          </box>
+        ))}
+
+        {/* Falling power-ups */}
+        {powerUps.map(powerUp => (
+          <box
+            key={powerUp.id}
+            position="absolute"
+            left={Math.round(powerUp.x)}
+            top={Math.round(powerUp.y)}
+          >
+            <text fg={POWER_UPS[powerUp.type].color}>
+              {POWER_UPS[powerUp.type].char}
+            </text>
+          </box>
+        ))}
+
+        {/* Particles */}
+        {particles.map(particle => (
+          <box
+            key={particle.id}
+            position="absolute"
+            left={Math.round(particle.x)}
+            top={Math.round(particle.y)}
+          >
+            <text fg={particle.color} attributes={particle.life < 5 ? TextAttributes.DIM : 0}>
+              {particle.char}
             </text>
           </box>
         ))}
@@ -849,10 +1232,16 @@ function HeartCollectorGame({ onWin, onLose }: { onWin: () => void; onLose: () =
   );
 }
 
-// Ultimate celebration screen
+// Ultimate celebration screen with Love Poem!
 function CelebrationScreen({ score }: { score: number }) {
   const renderer = useRenderer();
   const [fireworks, setFireworks] = useState<Array<{id: number; x: number; y: number; frame: number}>>([]);
+  const [showPoem, setShowPoem] = useState(false);
+  const [poemLine, setPoemLine] = useState(0);
+  const [currentPoemIndex, setCurrentPoemIndex] = useState(0);
+  const [waitingForNextPoem, setWaitingForNextPoem] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const poem = LOVE_POEMS[currentPoemIndex];
 
   useEffect(() => {
     // Create fireworks
@@ -872,12 +1261,62 @@ function CelebrationScreen({ score }: { score: number }) {
       })));
     }, 300);
 
-    return () => clearInterval(interval);
+    // Show poem after 2 seconds
+    const poemTimer = setTimeout(() => setShowPoem(true), 2000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(poemTimer);
+    };
   }, []);
+
+  // Animate poem lines - 2.5 seconds per line
+  useEffect(() => {
+    if (!showPoem || waitingForNextPoem) return;
+    
+    if (poemLine < poem.lines.length) {
+      const lineTimer = setTimeout(() => {
+        setPoemLine(l => l + 1);
+      }, 2500); // 2.5 seconds per line
+      
+      return () => clearTimeout(lineTimer);
+    } else {
+      // All lines shown, wait for 1 minute then show next poem
+      setWaitingForNextPoem(true);
+      setCountdown(60);
+    }
+  }, [showPoem, poemLine, poem.lines.length, waitingForNextPoem]);
+
+  // Countdown timer for next poem
+  useEffect(() => {
+    if (!waitingForNextPoem || countdown <= 0) return;
+    
+    const countdownTimer = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) {
+          // Move to next poem
+          setWaitingForNextPoem(false);
+          setPoemLine(0);
+          setCurrentPoemIndex(prev => (prev + 1) % LOVE_POEMS.length);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(countdownTimer);
+  }, [waitingForNextPoem, countdown]);
 
   useKeyboard((key) => {
     if (key.name === "q") {
       renderer.destroy();
+    }
+    // Skip to next poem with 'n' key
+    if ((key.name === "n" || key.name === "N") && waitingForNextPoem) {
+      setWaitingForNextPoem(false);
+      setPoemLine(0);
+      setCurrentPoemIndex(prev => (prev + 1) % LOVE_POEMS.length);
+      setCountdown(0);
     }
   });
 
@@ -923,18 +1362,58 @@ function CelebrationScreen({ score }: { score: number }) {
         gap={1}
       >
         <text fg={COLORS.crimson}>
-          <strong>You filled the Love Meter to 100%! 💕</strong>
+          <strong>Your love is unstoppable! 100%! 💕</strong>
         </text>
         <box marginTop={1}>
           <text fg={COLORS.hotPink}>
             Final Score: {score} love points
           </text>
         </box>
-        <box marginTop={1}>
-          <text fg={COLORS.purple}>
-            You're absolutely amazing! Best Valentine ever! 🌟
-          </text>
-        </box>
+        
+        {/* Love Poem */}
+        {showPoem && (
+          <box marginTop={2} flexDirection="column" alignItems="center">
+            <text fg={COLORS.gold}>
+              <strong>✨ {poem.title} ✨</strong>
+            </text>
+            <box marginTop={1} flexDirection="column" alignItems="center">
+              {poem.lines.slice(0, poemLine + 1).map((line, i) => (
+                <box key={i}>
+                  <text fg={i === poemLine && !waitingForNextPoem ? COLORS.deepPink : COLORS.purple}>
+                    {line}
+                  </text>
+                </box>
+              ))}
+            </box>
+            
+            {/* Waiting for next poem message */}
+            {waitingForNextPoem && (
+              <box marginTop={2} flexDirection="column" alignItems="center">
+                <text fg={COLORS.gold}>
+                  ✨ 💕 Beautiful, right? 💕 ✨
+                </text>
+                <box marginTop={1}>
+                  <text fg={COLORS.hotPink}>
+                    Next poem in {countdown} seconds...
+                  </text>
+                </box>
+                <box marginTop={1}>
+                  <text fg={COLORS.purple} attributes={TextAttributes.DIM}>
+                    (Press 'n' to skip)
+                  </text>
+                </box>
+              </box>
+            )}
+          </box>
+        )}
+
+        {!showPoem && (
+          <box marginTop={1}>
+            <text fg={COLORS.purple}>
+              You're absolutely amazing! Best Valentine ever! 🌟
+            </text>
+          </box>
+        )}
         <box marginTop={1}>
           <text fg={COLORS.deepPink}>
             ❤️ 💕 💖 💝 💗 💓 ❤️
@@ -974,6 +1453,7 @@ function CelebrationScreen({ score }: { score: number }) {
 // Game Over / Retry screen
 function GameOverScreen({ score, onRetry }: { score: number; onRetry: () => void }) {
   const [showRetry, setShowRetry] = useState(false);
+  const renderer = useRenderer();
 
   useEffect(() => {
     const timer = setTimeout(() => setShowRetry(true), 1500);
@@ -981,8 +1461,11 @@ function GameOverScreen({ score, onRetry }: { score: number; onRetry: () => void
   }, []);
 
   useKeyboard((key) => {
-    if (showRetry && key.name === "enter") {
+    if (showRetry && (key.name === "enter" || key.name === "return")) {
       onRetry();
+    }
+    if (key.name === "q") {
+      renderer.destroy();
     }
   });
 
@@ -1013,6 +1496,12 @@ function GameOverScreen({ score, onRetry }: { score: number; onRetry: () => void
       <box marginTop={2}>
         <text fg="#A0522D">
           💔 💔 💔
+        </text>
+      </box>
+
+      <box marginTop={2}>
+        <text fg="#8B7355">
+          Don't give up! Love conquers all! 💕
         </text>
       </box>
 
@@ -1068,6 +1557,7 @@ function App() {
   };
 
   const handleRetry = () => {
+    setFinalScore(0);
     setScreen("game");
   };
 
@@ -1077,8 +1567,8 @@ function App() {
       {screen === "no" && <NoScreen onReturn={handleReturnFromNo} />}
       {screen === "game" && (
         <HeartCollectorGame 
-          onWin={() => handleGameWin(100)} 
-          onLose={() => handleGameLose(finalScore)} 
+          onWin={handleGameWin} 
+          onLose={handleGameLose}
         />
       )}
       {screen === "gameover" && finalScore >= 100 && <CelebrationScreen score={finalScore} />}
