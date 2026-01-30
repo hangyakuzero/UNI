@@ -1,9 +1,6 @@
 
 ---
 
-## 🧠 Updated GitHub Actions workflow
-
-```yaml
 name: Build & Release UNI
 
 on:
