@@ -140,7 +140,7 @@ function ValentineFrame({ children }: { children: React.ReactNode }) {
         <box
           border
           borderColor={COLORS.hotPink}
-          borderStyle="round"
+          borderStyle="roundedt"
           padding={3}
           backgroundColor={COLORS.white}
           flexDirection="column"
@@ -310,7 +310,7 @@ function ProposalScreen({ onSelect }: { onSelect: (choice: "yes" | "no") => void
           <box
             border
             borderColor={COLORS.hotPink}
-            borderStyle="round"
+            borderStyle="rounded"
             padding={3}
             backgroundColor={COLORS.white}
             flexDirection="column"
@@ -447,7 +447,7 @@ function NoScreen({ onReturn }: { onReturn: () => void }) {
       <box
         border
         borderColor="#5C4033"
-        borderStyle="round"
+        borderStyle="rounded"
         padding={3}
         backgroundColor="#2d2d44"
         flexDirection="column"
