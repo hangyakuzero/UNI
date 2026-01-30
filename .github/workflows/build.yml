@@ -1,99 +1,111 @@
-name: Build Valentine TUI
+
+---
+
+## 🧠 Updated GitHub Actions workflow
+
+```yaml
+name: Build & Release UNI
 
 on:
   push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+    branches:
+      - main
+      - master
+    tags:
+      - "v*"
   workflow_dispatch:
 
 jobs:
+
   build-macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
-      
-      - name: Install dependencies
+
+      - name: Install deps
         run: bun install
-      
-      - name: Build for macOS (ARM64)
-        run: bun build src/index.tsx --compile --target=bun-darwin-arm64 --outfile=dist/uni-macos
-      
-      - name: Upload artifact
+
+      - name: Build macOS binary
+        run: |
+          mkdir -p dist
+          bun build src/index.tsx \
+            --compile \
+            --target=bun-darwin-arm64 \
+            --outfile=dist/uni-macos
+
+      - name: Upload macOS
         uses: actions/upload-artifact@v4
         with:
           name: uni-macos
           path: dist/uni-macos
-          retention-days: 30
 
   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
-      
-      - name: Install dependencies
+
+      - name: Install deps
         run: bun install
-      
-      - name: Build for Windows
-        run: bun build src/index.tsx --compile --target=bun-windows-x64 --outfile=dist/uni.exe
-      
-      - name: Upload artifact
+
+      - name: Build Windows binary
+        run: |
+          mkdir dist
+          bun build src/index.tsx \
+            --compile \
+            --target=bun-windows-x64 \
+            --outfile=dist/uni.exe
+
+      - name: Upload Windows
         uses: actions/upload-artifact@v4
         with:
           name: uni-windows
           path: dist/uni.exe
-          retention-days: 30
 
   release:
     needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    
+    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Download all artifacts
+
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
           pattern: uni-*
-          merge-multiple: true
-      
-      - name: List dist contents
+
+      - name: List dist
         run: ls -la dist/
-      
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: dist/*
-          name: Valentine TUI ${{ github.ref_name }}
+          files: |
+            dist/uni-macos
+            dist/uni.exe
+          name: UNI ${{ github.ref_name }}
           body: |
-            ## 💕 Valentine TUI - Interactive Proposal App
-            
-            ### Features:
-            - Romantic proposal with heartbeat animation
-            - Color pulsing and visual effects
-            - Heart Collector mini-game (catch falling hearts!)
-            - No escape from saying Yes 😄
-            
-            ### Downloads:
-            - **macOS (Apple Silicon)**: `uni-macos`
-            - **Windows**: `uni.exe`
-            
-            ### How to run:
-            1. Download the file for your OS
-            2. Double-click to run (macOS: right-click → Open if security warning)
-            3. Enjoy! 💕
+            ## 🎉 UNI Release ${{ github.ref_name }}
+
+            Download binaries below:
+
+            - **macOS (Apple Silicon)** — `uni-macos`
+            - **Windows (x64)** — `uni.exe`
+
+            You can install on macOS with:
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/hangyakuzero/UNI/main/install.sh | sh
+            ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
