@@ -1,0 +1,108 @@
+name: Build Valentine TUI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [arm64, x64]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      
+      - name: Install dependencies
+        run: bun install
+      
+      - name: Build for macOS (${{ matrix.arch }})
+        run: |
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            bun build src/index.tsx --compile --target=bun-darwin-arm64 --outfile=dist/uni-macos
+          else
+            bun build src/index.tsx --compile --target=bun-darwin-x64 --outfile=dist/uni-macos-intel
+          fi
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uni-macos-${{ matrix.arch }}
+          path: dist/uni-macos*
+          retention-days: 30
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      
+      - name: Install dependencies
+        run: bun install
+      
+      - name: Build for Windows
+        run: bun build src/index.tsx --compile --target=bun-windows-x64 --outfile=dist/uni.exe
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uni-windows
+          path: dist/uni.exe
+          retention-days: 30
+
+  release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: uni-*
+          merge-multiple: true
+      
+      - name: List dist contents
+        run: ls -la dist/
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/*
+          name: Valentine TUI ${{ github.ref_name }}
+          body: |
+            ## 💕 Valentine TUI - Interactive Proposal App
+            
+            ### Features:
+            - Romantic proposal with heartbeat animation
+            - Color pulsing and visual effects
+            - Heart Collector mini-game (catch falling hearts!)
+            - No escape from saying Yes 😄
+            
+            ### Downloads:
+            - **macOS (Apple Silicon)**: `uni-macos`
+            - **macOS (Intel)**: `uni-macos-intel`
+            - **Windows**: `uni.exe`
+            
+            ### How to run:
+            1. Download the file for your OS
+            2. Double-click to run (macOS: right-click → Open if security warning)
+            3. Enjoy! 💕
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
