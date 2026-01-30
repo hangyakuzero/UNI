@@ -10,9 +10,6 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
-    strategy:
-      matrix:
-        arch: [arm64, x64]
     steps:
       - uses: actions/checkout@v4
       
@@ -24,19 +21,14 @@ jobs:
       - name: Install dependencies
         run: bun install
       
-      - name: Build for macOS (${{ matrix.arch }})
-        run: |
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            bun build src/index.tsx --compile --target=bun-darwin-arm64 --outfile=dist/uni-macos
-          else
-            bun build src/index.tsx --compile --target=bun-darwin-x64 --outfile=dist/uni-macos-intel
-          fi
+      - name: Build for macOS (ARM64)
+        run: bun build src/index.tsx --compile --target=bun-darwin-arm64 --outfile=dist/uni-macos
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: uni-macos-${{ matrix.arch }}
-          path: dist/uni-macos*
+          name: uni-macos
+          path: dist/uni-macos
           retention-days: 30
 
   build-windows:
@@ -97,7 +89,6 @@ jobs:
             
             ### Downloads:
             - **macOS (Apple Silicon)**: `uni-macos`
-            - **macOS (Intel)**: `uni-macos-intel`
             - **Windows**: `uni.exe`
             
             ### How to run:
